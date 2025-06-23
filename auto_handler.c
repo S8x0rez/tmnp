@@ -35,7 +35,7 @@ enum AutoHandleState g_auto_stat;
 
 void auto_handler()
 {
-    ROBOT robot = {15, 20, -90, 0};
+    ROBOT robot = {15, 20, 90, 0};
     OBJECT ball = {15, 28, 4, 4};
     OBJECT hole = {170, 170, 0, 0};
     
@@ -66,7 +66,7 @@ void auto_handler()
         if (g_auto_stat == STAT_SWING) {
             ev3_lcd_draw_string("SWING             ", 0, l_font_property.height * 4);
             
-            if (acos(hole.x * 1 + hole.y * 0) * 180 / PI - robot.direct < 0) {    // swing direction  //
+            if (acos(hole.x - ball.x * 1) * 180 / PI - robot.direct < 0) {    // swing direction  //
                 swing_task(&ball, &hole, -1);
                 robot_rotate(&robot, -90);
             }
@@ -102,9 +102,11 @@ void auto_handler()
         else if(g_auto_stat == STAT_WAIT) {
             if(ev3_button_is_pressed(ENTER_BUTTON)){
                 ev3_lcd_fill_rect(0, l_font_property.height * 4, EV3_LCD_WIDTH, l_font_property.height, EV3_LCD_WHITE);
+
                 ev3_motor_rotate(PORT_ARM_MOTOR, -360, 50, true);
                 arm_angle = ev3_motor_get_counts(PORT_ARM_MOTOR) % 360;
-                ev3_motor_rotate(PORT_ARM_MOTOR, arm_angle, 20, true);
+                ev3_motor_rotate(PORT_ARM_MOTOR, -1 * arm_angle, 20, true);
+
                 robot_rotate(&robot, -90);
                 g_auto_stat = STAT_SEARCH;
             }else{
@@ -137,24 +139,21 @@ void set_stage(int stage[][STAGE_BLOCK_COL])
 void calc_route(ITEMS *obj, int stage[][STAGE_BLOCK_COL])
 {
     int straight = 0;
-    int target_x, target_y;
-    int r;
-    int theta;
+    int target_x = 0, target_y = 0;
+    double r = 0;
+    double theta = 0;
 
     if (obj->wall->width == 0 && obj->wall->height == 0) {    // wall is none //
         straight = 1;
     }
     else {  // wall is paralle to the stage //
         if (obj->wall->x == 0) {
-            if (obj->ball->y < obj->wall->y) straight = 0;
-            else straight = 1;
+            if (obj->ball->y > obj->wall->y) straight = 1;
         }
         else if (obj->wall->y == 0) {
-            if (obj->ball->x < obj->wall->x) straight = 0;
-            else straight = 1;
+            if (obj->ball->x > obj->wall->x) straight = 1;
         }
     }
-
 
     if (straight == 1) {
         target_x = obj->hole->x;
@@ -172,27 +171,27 @@ void calc_route(ITEMS *obj, int stage[][STAGE_BLOCK_COL])
     }
 
 
-    if (target_x == obj->ball->x) { // y = n    //
+    if (target_x == obj->ball->x) { // go to y = n    //
         target_x = obj->robot->x;
         target_y = obj->ball->y;
 
         obj->robot->route[0][1] = abs(target_x - obj->robot->x);
         obj->robot->route[1][1] = abs(obj->ball->y - target_y);
     }
-    else if (target_y == obj->ball->y) {
+    else if (target_y == obj->ball->y) {    // go to x = n    //
         target_x = obj->ball->x;
         target_y = obj->robot->y;
         
         obj->robot->route[0][1] = abs(target_y - obj->robot->y);
         obj->robot->route[1][1] = abs(obj->ball->x - target_x);
     }
-    else { //  y = ax + b || y = n //
+    else { //  y = ax + b   //
         double a1 = (target_y - obj->ball->y) / (target_x - obj->ball->x); // ボールとゴールの直線  //
 
         double a2 = -1 / a1; // ボールを通る上記の直線の垂線    //
         double b2 = obj->ball->y - a2 * obj->ball->x;
 
-        if (abs((a2 * obj->robot->x + b2) - obj->robot->y) > abs((obj->robot->y - b2) / a2 - obj->robot->x)) {
+        if (abs((a2 * obj->robot->x + b2) - obj->robot->y) < abs((obj->robot->y - b2) / a2 - obj->robot->x)) {
             target_x = obj->robot->x;
             target_y = a2 * obj->robot->x + b2;            
         }
@@ -203,26 +202,22 @@ void calc_route(ITEMS *obj, int stage[][STAGE_BLOCK_COL])
     }
 
     r = sqrt(pow(target_x - obj->robot->x, 2) + pow(target_y - obj->robot->y, 2));
-    theta = acos((target_x * 1 + target_y * 0) / r) * 180 / PI;  // 内積から計算
+    theta = acos(((target_x - obj->robot->x) * 1) / r) * 180 / PI;  // 内積から計算 //
 
     obj->robot->route[0][0] = -1 * obj->robot->direct + theta;
     obj->robot->route[0][1] = r;
 
     r = sqrt(pow(obj->ball->x - target_x, 2) + pow(obj->ball->y - target_y, 2));
-    theta = acos(((obj->ball->x - target_x) * 1 + (obj->ball->y - target_y) * 0) / r) * 180 / PI;  // 内積から計算
-
-
-		sprintf(str, "%3d , %3d , %3d", obj->ball->x, target_x, theta);
-		ev3_lcd_draw_string(str, 0, l_font_property.height * 3);
+    theta = acos(((obj->ball->x - target_x) * 1) / r) * 180 / PI;  // 内積から計算  //
     
-    obj->robot->route[1][0] = -1 * obj->robot->direct - obj->robot->route[0][0] + theta; // rotate angle //
+    obj->robot->route[1][0] = -1 * obj->robot->direct + obj->robot->route[0][0] + theta; // rotate angle //
     obj->robot->route[1][1] = r;
 
 
     sprintf(str, "%3d,%3d,%3d,%3d", obj->robot->route[0][0],obj->robot->route[0][1],obj->robot->route[1][0],obj->robot->route[1][1]);
     ev3_lcd_draw_string(str, 0, 0);
 
-    tslp_tsk(10000);
+    tslp_tsk(1000);
 }
 
 void print_goal()
