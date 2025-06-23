@@ -186,7 +186,7 @@ void calc_route(ITEMS *obj, int stage[][STAGE_BLOCK_COL])
         obj->robot->route[1][1] = abs(obj->ball->x - target_x);
     }
     else { //  y = ax + b   //
-        double a1 = (target_y - obj->ball->y) / (target_x - obj->ball->x); // ボールとゴールの直線  //
+        double a1 = (double)(target_y - obj->ball->y) / (target_x - obj->ball->x); // ボールとゴールの直線  //
 
         double a2 = -1 / a1; // ボールを通る上記の直線の垂線    //
         double b2 = obj->ball->y - a2 * obj->ball->x;
@@ -202,15 +202,15 @@ void calc_route(ITEMS *obj, int stage[][STAGE_BLOCK_COL])
     }
 
     r = sqrt(pow(target_x - obj->robot->x, 2) + pow(target_y - obj->robot->y, 2));
-    theta = acos(((target_x - obj->robot->x) * 1) / r) * 180 / PI;  // 内積から計算 //
+    theta =atan2(target_y - obj->robot->y, target_x - obj->robot->x) * 180 / PI;  // 内積から計算 //
 
-    obj->robot->route[0][0] = -1 * obj->robot->direct + theta;
+    obj->robot->route[0][0] = - obj->robot->direct + theta;
     obj->robot->route[0][1] = r;
 
     r = sqrt(pow(obj->ball->x - target_x, 2) + pow(obj->ball->y - target_y, 2));
-    theta = acos(((obj->ball->x - target_x) * 1) / r) * 180 / PI;  // 内積から計算  //
+    theta = atan2(obj->ball->y - target_y, obj->ball->x - target_x) * 180 / PI;  // 内積から計算  //
     
-    obj->robot->route[1][0] = -1 * obj->robot->direct + obj->robot->route[0][0] + theta; // rotate angle //
+    obj->robot->route[1][0] = obj->robot->direct - obj->robot->route[0][0] + theta; // rotate angle //
     obj->robot->route[1][1] = r;
 
 
